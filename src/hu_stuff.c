@@ -2431,10 +2431,8 @@ void HU_Drawer(void)
 				HU_DrawRankings();
 #ifdef HAVE_BLUA
 		if (renderisnewtic)
-		{
 			LUA_HUD_ClearDrawList(luahuddrawlist_scores);
-			LUAh_ScoresHUD(luahuddrawlist_scores);
-		}
+		LUAh_ScoresHUD(luahuddrawlist_scores);
 		LUA_HUD_DrawList(luahuddrawlist_scores);
 #endif
 		}

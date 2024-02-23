@@ -2010,10 +2010,7 @@ static void ST_overlayDrawer(void)
 #ifdef HAVE_BLUA
 	if (!(netgame || multiplayer) || !hu_showscores)
 	{
-		if (renderisnewtic)
-		{
-			LUAh_GameHUD(stplyr, luahuddrawlist_game);
-		}
+		LUAh_GameHUD(stplyr, luahuddrawlist_game);
 	}
 #endif // HAVE_BLUA
 

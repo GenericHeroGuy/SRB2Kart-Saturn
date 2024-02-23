@@ -677,10 +677,8 @@ dotimer:
 
 #ifdef HAVE_BLUA
 	if (renderisnewtic)
-	{
 		LUA_HUD_ClearDrawList(luahuddrawlist_intermission);
-		LUAh_IntermissionHUD(luahuddrawlist_intermission);
-	}
+	LUAh_IntermissionHUD(luahuddrawlist_intermission);
 	LUA_HUD_DrawList(luahuddrawlist_intermission);
 #endif
 }
@@ -1368,10 +1366,8 @@ void Y_VoteDrawer(void)
 
 #ifdef HAVE_BLUA
 	if (renderisnewtic)
-	{
 		LUA_HUD_ClearDrawList(luahuddrawlist_vote);
-		LUAh_VoteHUD(luahuddrawlist_vote);
-	}
+	LUAh_VoteHUD(luahuddrawlist_vote);
 	LUA_HUD_DrawList(luahuddrawlist_vote);
 #endif
 }
