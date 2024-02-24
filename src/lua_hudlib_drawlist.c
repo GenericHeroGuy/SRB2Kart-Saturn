@@ -37,27 +37,26 @@ typedef struct drawitem_s {
 	enum drawitem_e type;
 	fixed_t x;
 	fixed_t y;
-	fixed_t w;
-	fixed_t h;
-	INT32 c;
-	fixed_t scale;
-	fixed_t hscale;
-	fixed_t vscale;
-	patch_t *patch;
+	union {
+		fixed_t w;
+		fixed_t scale;
+		fixed_t hscale;
+	};
+	union {
+		fixed_t h;
+		fixed_t vscale;
+	};
 	INT32 flags;
-	UINT16 basecolor;
-	UINT16 outlinecolor;
+	patch_t *patch;
 	const UINT8 *colormap;
-	UINT8 *basecolormap;
-	UINT8 *outlinecolormap;
-	fixed_t sx;
-	fixed_t sy;
-	INT32 num;
+	union {
+		INT32 num;
+		INT32 align;
+	};
 	INT32 digits;
 	size_t stroffset; // offset into strbuf to get str
 	UINT16 color;
 	UINT8 strength;
-	INT32 align;
 } drawitem_t;
 
 // The internal structure of a drawlist.
@@ -301,7 +300,7 @@ void LUA_HUD_AddDrawFill(
 	INT32 y,
 	INT32 w,
 	INT32 h,
-	INT32 c
+	INT32 flags
 )
 {
 	size_t i = AllocateDrawItem(list);
@@ -311,7 +310,7 @@ void LUA_HUD_AddDrawFill(
 	item->y = y;
 	item->w = w;
 	item->h = h;
-	item->c = c;
+	item->flags = flags;
 }
 
 void LUA_HUD_AddDrawString(
@@ -414,7 +413,7 @@ void LUA_HUD_DrawList(huddrawlist_h list)
 				V_DrawPingNum(item->x, item->y, item->flags, item->num, item->colormap);
 				break;
 			case DI_DrawFill:
-				V_DrawFill(item->x, item->y, item->w, item->h, item->c);
+				V_DrawFill(item->x, item->y, item->w, item->h, item->flags);
 				break;
 			case DI_DrawString:
 				switch(item->align)
