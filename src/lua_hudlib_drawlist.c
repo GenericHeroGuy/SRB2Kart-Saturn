@@ -11,11 +11,15 @@
 /// \brief a data structure for managing cached drawlists for the Lua hud lib
 
 #include "lua_hudlib_drawlist.h"
+#include "lua_script.h"
+#include "lua_hud.h"
 
 #include <string.h>
 
 #include "v_video.h"
 #include "z_zone.h"
+#include "r_main.h"
+#include "r_fps.h"
 
 enum drawitem_e {
 	DI_Draw = 0,
@@ -35,6 +39,7 @@ enum drawitem_e {
 // A single draw item with all possible arguments needed for a draw call.
 typedef struct drawitem_s {
 	enum drawitem_e type;
+	UINT64 id;
 	fixed_t x;
 	fixed_t y;
 	union {
@@ -67,6 +72,10 @@ struct huddrawlist_s {
 	char *strbuf;
 	size_t strbuf_capacity;
 	size_t strbuf_len;
+
+	drawitem_t *olditems;
+	size_t olditems_capacity;
+	size_t olditems_len;
 };
 
 // alignment types for v.drawString
@@ -93,11 +102,25 @@ huddrawlist_h LUA_HUD_CreateDrawList(void)
 	drawlist->strbuf_capacity = 0;
 	drawlist->strbuf_len = 0;
 
+	drawlist->olditems = NULL;
+	drawlist->olditems_capacity = 0;
+	drawlist->olditems_len = 0;
+
 	return drawlist;
 }
 
 void LUA_HUD_ClearDrawList(huddrawlist_h list)
 {
+	// swap old and new lists
+	#define SWAP(tmp, old, new) \
+	tmp = old; old = new; new = tmp;
+
+	void *ptrtmp;
+	size_t sizetmp;
+	SWAP(ptrtmp, list->olditems, list->items)
+	SWAP(sizetmp, list->olditems_capacity, list->items_capacity)
+	SWAP(sizetmp, list->olditems_len, list->items_len)
+
 	// rather than deallocate, we'll just save the existing allocation and empty
 	// it out for reuse
 
@@ -149,6 +172,14 @@ static size_t AllocateDrawItem(huddrawlist_h list)
 		list->items = (drawitem_t *) Z_Realloc(list->items, sizeof(struct drawitem_s) * list->items_capacity, PU_STATIC, NULL);
 	}
 
+	// grow the old list too!
+	if (list->olditems_capacity <= list->olditems_len + 1)
+	{
+		if (list->olditems_capacity == 0) list->olditems_capacity = 128;
+		else list->olditems_capacity *= 2;
+		list->olditems = (drawitem_t *) Z_Realloc(list->olditems, sizeof(struct drawitem_s) * list->olditems_capacity, PU_STATIC, NULL);
+	}
+
 	return list->items_len++;
 }
 
@@ -176,6 +207,12 @@ static size_t CopyString(huddrawlist_h list, const char* str)
 	}
 }
 
+// lord forgive me for what I'm about to do
+#include "blua/lstate.h"
+#include "lua_libs.h"
+
+#define GETITEMID item->id = hud_interpolate ? (((size_t)gL->savedpc << 32) | interpcounter) : 0;
+
 void LUA_HUD_AddDraw(
 	huddrawlist_h list,
 	INT32 x,
@@ -187,6 +224,7 @@ void LUA_HUD_AddDraw(
 {
 	size_t i = AllocateDrawItem(list);
 	drawitem_t *item = &list->items[i];
+	GETITEMID
 	item->type = DI_Draw;
 	item->x = x;
 	item->y = y;
@@ -207,6 +245,7 @@ void LUA_HUD_AddDrawScaled(
 {
 	size_t i = AllocateDrawItem(list);
 	drawitem_t *item = &list->items[i];
+	GETITEMID
 	item->type = DI_DrawScaled;
 	item->x = x;
 	item->y = y;
@@ -229,6 +268,7 @@ void LUA_HUD_AddDrawStretched(
 {
 	size_t i = AllocateDrawItem(list);
 	drawitem_t *item = &list->items[i];
+	GETITEMID
 	item->type = DI_DrawStretched;
 	item->x = x;
 	item->y = y;
@@ -249,6 +289,7 @@ void LUA_HUD_AddDrawNum(
 {
 	size_t i = AllocateDrawItem(list);
 	drawitem_t *item = &list->items[i];
+	GETITEMID
 	item->type = DI_DrawNum;
 	item->x = x;
 	item->y = y;
@@ -267,6 +308,7 @@ void LUA_HUD_AddDrawPaddedNum(
 {
 	size_t i = AllocateDrawItem(list);
 	drawitem_t *item = &list->items[i];
+	GETITEMID
 	item->type = DI_DrawPaddedNum;
 	item->x = x;
 	item->y = y;
@@ -286,6 +328,7 @@ void LUA_HUD_AddDrawPingNum(
 {
 	size_t i = AllocateDrawItem(list);
 	drawitem_t *item = &list->items[i];
+	GETITEMID
 	item->type = DI_DrawPingNum;
 	item->x = x;
 	item->y = y;
@@ -305,6 +348,7 @@ void LUA_HUD_AddDrawFill(
 {
 	size_t i = AllocateDrawItem(list);
 	drawitem_t *item = &list->items[i];
+	GETITEMID
 	item->type = DI_DrawFill;
 	item->x = x;
 	item->y = y;
@@ -324,6 +368,7 @@ void LUA_HUD_AddDrawString(
 {
 	size_t i = AllocateDrawItem(list);
 	drawitem_t *item = &list->items[i];
+	GETITEMID
 	item->type = DI_DrawString;
 	item->x = x;
 	item->y = y;
@@ -342,6 +387,7 @@ void LUA_HUD_AddDrawKartString(
 {
 	size_t i = AllocateDrawItem(list);
 	drawitem_t *item = &list->items[i];
+	GETITEMID
 	item->type = DI_DrawKartString;
 	item->x = x;
 	item->y = y;
@@ -359,6 +405,7 @@ void LUA_HUD_AddDrawLevelTitle(
 {
 	size_t i = AllocateDrawItem(list);
 	drawitem_t *item = &list->items[i];
+	GETITEMID
 	item->type = DI_DrawLevelTitle;
 	item->x = x;
 	item->y = y;
@@ -374,6 +421,7 @@ void LUA_HUD_AddFadeScreen(
 {
 	size_t i = AllocateDrawItem(list);
 	drawitem_t *item = &list->items[i];
+	GETITEMID
 	item->type = DI_FadeScreen;
 	item->color = color;
 	item->strength = strength;
@@ -382,76 +430,108 @@ void LUA_HUD_AddFadeScreen(
 void LUA_HUD_DrawList(huddrawlist_h list)
 {
 	size_t i;
+	size_t j = 0;
 
 	if (!list) I_Error("HUD drawlist invalid");
 	if (list->items_len <= 0) return;
 	if (!list->items) I_Error("HUD drawlist->items invalid");
 
+	fixed_t frac = R_UsingFrameInterpolation() ? rendertimefrac : FRACUNIT;
+
 	for (i = 0; i < list->items_len; i++)
 	{
 		drawitem_t *item = &list->items[i];
 		const char *itemstr = &list->strbuf[item->stroffset];
+		drawitem_t *olditem = NULL;
+
+		if (item->id) {
+			// find the old one too
+			// this is kinda cursed... we need to check every item
+			// but stop when the first-checked item is reached again
+			for (size_t stop = j;;) // looks prettier than while(1) :^)
+			{
+				if (j == list->olditems_len)
+				{
+					// wrap around
+					j = 0;
+					if (j == stop) // i'm dumb
+						break;
+				}
+				drawitem_t* old = &list->olditems[j++];
+				if (old->id == item->id)
+				{
+					// gotcha!
+					olditem = old;
+					break;
+				}
+				if (j == stop)
+					break;
+			}
+		}
+
+		// no relation to the r_fps function of a similar name :^)
+		#define LERP(it) (olditem ? olditem->it + FixedMul(frac, item->it - olditem->it) : item->it)
 
 		switch (item->type)
 		{
 			case DI_Draw:
-				V_DrawFixedPatch(item->x<<FRACBITS, item->y<<FRACBITS, FRACUNIT, item->flags, item->patch, item->colormap);
+				V_DrawFixedPatch(LERP(x)<<FRACBITS, LERP(y)<<FRACBITS, FRACUNIT, item->flags, item->patch, item->colormap);
 				break;
 			case DI_DrawScaled:
-				V_DrawFixedPatch(item->x, item->y, item->scale, item->flags, item->patch, item->colormap);
+				V_DrawFixedPatch(LERP(x), LERP(y), LERP(scale), item->flags, item->patch, item->colormap);
 				break;
 			case DI_DrawStretched:
-				V_DrawStretchyFixedPatch(item->x, item->y, item->hscale, item->vscale, item->flags, item->patch, item->colormap);
+				V_DrawStretchyFixedPatch(LERP(x), LERP(y), LERP(hscale), LERP(vscale), item->flags, item->patch, item->colormap);
 				break;
 			case DI_DrawNum:
-				V_DrawTallNum(item->x, item->y, item->flags, item->num);
+				V_DrawTallNum(LERP(x), LERP(y), item->flags, item->num);
 				break;
 			case DI_DrawPaddedNum:
-				V_DrawPaddedTallNum(item->x, item->y, item->flags, item->num, item->digits);
+				V_DrawPaddedTallNum(LERP(x), LERP(y), item->flags, item->num, item->digits);
 				break;
 			case DI_DrawPingNum:
-				V_DrawPingNum(item->x, item->y, item->flags, item->num, item->colormap);
+				V_DrawPingNum(LERP(x), LERP(y), item->flags, item->num, item->colormap);
 				break;
 			case DI_DrawFill:
-				V_DrawFill(item->x, item->y, item->w, item->h, item->flags);
+				V_DrawFill(LERP(x), LERP(y), item->w, item->h, item->flags);
 				break;
 			case DI_DrawString:
 				switch(item->align)
 				{
 				// hu_font
 				case align_left:
-					V_DrawString(item->x, item->y, item->flags, itemstr);
+					V_DrawString(LERP(x), LERP(y), item->flags, itemstr);
 					break;
 				case align_center:
-					V_DrawCenteredString(item->x, item->y, item->flags, itemstr);
+					V_DrawCenteredString(LERP(x), LERP(y), item->flags, itemstr);
 					break;
 				case align_right:
-					V_DrawRightAlignedString(item->x, item->y, item->flags, itemstr);
+					V_DrawRightAlignedString(LERP(x), LERP(y), item->flags, itemstr);
 					break;
 				case align_fixed:
-					V_DrawStringAtFixed(item->x, item->y, item->flags, itemstr);
+					V_DrawStringAtFixed(LERP(x), LERP(y), item->flags, itemstr);
 					break;
 				// hu_font, 0.5x scale
 				case align_small:
-					V_DrawSmallString(item->x, item->y, item->flags, itemstr);
+					V_DrawSmallString(LERP(x), LERP(y), item->flags, itemstr);
 					break;
 				case align_smallright:
-					V_DrawRightAlignedSmallString(item->x, item->y, item->flags, itemstr);
+					V_DrawRightAlignedSmallString(LERP(x), LERP(y), item->flags, itemstr);
 					break;
 				// tny_font
 				case align_thin:
-					V_DrawThinString(item->x, item->y, item->flags, itemstr);
+					V_DrawThinString(LERP(x), LERP(y), item->flags, itemstr);
 					break;
 				case align_thinright:
-					V_DrawRightAlignedThinString(item->x, item->y, item->flags, itemstr);
+					V_DrawRightAlignedThinString(LERP(x), LERP(y), item->flags, itemstr);
 					break;
 				}
 				break;
 			case DI_DrawKartString:
-				V_DrawKartString(item->x, item->y, item->flags, itemstr);
+				V_DrawKartString(LERP(x), LERP(y), item->flags, itemstr);
 				break;
 			case DI_DrawLevelTitle:
-				V_DrawLevelTitle(item->x, item->y, item->flags, itemstr);
+				V_DrawLevelTitle(LERP(x), LERP(y), item->flags, itemstr);
 				break;
 			case DI_FadeScreen:
 				V_DrawFadeScreen(item->color, item->strength);
