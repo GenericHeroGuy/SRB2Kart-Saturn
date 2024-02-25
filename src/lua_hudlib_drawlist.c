@@ -13,6 +13,8 @@
 #include "lua_hudlib_drawlist.h"
 #include "lua_script.h"
 #include "lua_hud.h"
+#include "lua_libs.h"    // gL
+#include "blua/lstate.h" // ->savedpc, needed to ID draw calls
 
 #include <string.h>
 
@@ -207,11 +209,11 @@ static size_t CopyString(huddrawlist_h list, const char* str)
 	}
 }
 
-// lord forgive me for what I'm about to do
-#include "blua/lstate.h"
-#include "lua_libs.h"
-
-#define GETITEMID item->id = hud_interpolate ? (((size_t)gL->savedpc << 32) | interpcounter) : 0;
+// 63..32 = savedpc
+// 31..30 = stplyrnum (from interpcounter)
+// 29..8  = interpcounter
+//  7..0  = interptag
+#define GETITEMID item->id = hud_interpolate ? (((UINT64)gL->savedpc << 24) | hud_interpcounter) << 8 | hud_interptag : 0;
 
 void LUA_HUD_AddDraw(
 	huddrawlist_h list,

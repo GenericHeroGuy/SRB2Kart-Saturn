@@ -33,7 +33,8 @@
 
 boolean hud_running = false;
 boolean hud_interpolate = false;
-UINT32 interpcounter;
+UINT32 hud_interpcounter; // UINT24, actually
+UINT8 hud_interptag;
 
 static UINT8 hud_enabled[(hud_MAX/8)+1];
 
@@ -1054,7 +1055,14 @@ static int libd_renderer(lua_State *L)
 static int libd_interpolate(lua_State *L)
 {
 	HUDONLY
-	hud_interpolate = luaL_checkboolean(L, 1);
+	if (lua_isnumber(L, 1))
+	{
+		hud_interpolate = R_UsingFrameInterpolation();
+		hud_interptag = (UINT8)lua_tonumber(L, 1);
+	}
+	else
+		hud_interpolate = luaL_checkboolean(L, 1) && R_UsingFrameInterpolation();
+
 	return 0;
 }
 
@@ -1266,6 +1274,13 @@ boolean LUA_HudEnabled(enum hud option)
 	return false;
 }
 
+static void interpnext(void)
+{
+	hud_interpolate = false;
+	hud_interptag = 0;
+	hud_interpcounter++;
+}
+
 // Hook for HUD rendering
 void LUAh_GameHUD(player_t *stplayr, huddrawlist_h list)
 {
@@ -1311,11 +1326,10 @@ void LUAh_GameHUD(player_t *stplayr, huddrawlist_h list)
 		camnum = 1;
 	}
 
-	interpcounter = (camnum-1) << 30;
+	hud_interpcounter = (camnum-1) << 22; // upper 2 bits for stplyrnum
 	lua_pushnil(gL);
 	while (lua_next(gL, -5) != 0) {
-		hud_interpolate = false;
-		interpcounter++;
+		interpnext();
 		lua_pushvalue(gL, -5); // graphics library (HUD[1])
 		lua_pushvalue(gL, -5); // stplayr
 		lua_pushvalue(gL, -5); // camera
@@ -1350,11 +1364,10 @@ void LUAh_ScoresHUD(huddrawlist_h list)
 	I_Assert(lua_istable(gL, -1));
 	lua_remove(gL, -3); // pop HUD
 
-	interpcounter = 0;
+	hud_interpcounter = 0;
 	lua_pushnil(gL);
 	while (lua_next(gL, -3) != 0) {
-		hud_interpolate = false;
-		interpcounter++;
+		interpnext();
 		lua_pushvalue(gL, -3); // graphics library (HUD[1])
 		LUA_Call(gL, 1, 0, 1);
 	}
@@ -1387,11 +1400,10 @@ void LUAh_IntermissionHUD(huddrawlist_h list)
 	I_Assert(lua_istable(gL, -1));
 	lua_remove(gL, -3); // pop HUD
 
-	interpcounter = 0;
+	hud_interpcounter = 0;
 	lua_pushnil(gL);
 	while (lua_next(gL, -3) != 0) {
-		hud_interpolate = false;
-		interpcounter++;
+		interpnext();
 		lua_pushvalue(gL, -3); // graphics library (HUD[1])
 		LUA_Call(gL, 1, 0, 1);
 	}
@@ -1424,11 +1436,10 @@ void LUAh_VoteHUD(huddrawlist_h list)
 	I_Assert(lua_istable(gL, -1));
 	lua_remove(gL, -3); // pop HUD
 
-	interpcounter = 0;
+	hud_interpcounter = 0;
 	lua_pushnil(gL);
 	while (lua_next(gL, -3) != 0) {
-		hud_interpolate = false;
-		interpcounter++;
+		interpnext();
 		lua_pushvalue(gL, -3); // graphics library (HUD[1])
 		LUA_Call(gL, 1, 0, 1);
 	}
