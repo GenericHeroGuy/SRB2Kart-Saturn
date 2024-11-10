@@ -1493,7 +1493,7 @@ void G_BuildTiccmd(ticcmd_t *cmd, INT32 realtics, UINT8 ssplayer)
 	if ((cmd->forwardmove || cmd->sidemove || cmd->buttons)
 		&& displayplayers[0] != consoleplayer && ssplayer == 1)
 	{
-		displayplayers[0] = consoleplayer;
+		G_ResetView(1, consoleplayer, false);
 		// i dont like this lmao
 		if (cv_director.value)
 			CV_SetValue(&cv_director, 0);
@@ -2007,7 +2007,7 @@ static void G_FixCamera(UINT8 view)
 
 	// The order of displayplayers can change, which would
 	// invalidate localangle.
-	localangle[view - 1] = player->cmd.angleturn;
+	localangle[view - 1] = player->mo->angle; // Players *always* have mobjs, right?
 
 	P_ResetCamera(player, &camera[view - 1]);
 
