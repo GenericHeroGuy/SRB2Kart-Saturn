@@ -366,6 +366,8 @@ void SendWeaponPref2(void);
 void SendWeaponPref3(void);
 void SendWeaponPref4(void);
 
+static void G_FixCamera(UINT8 view);
+
 //static CV_PossibleValue_t crosshair_cons_t[] = {{0, "Off"}, {1, "Cross"}, {2, "Angle"}, {3, "Point"}, {0, NULL}};
 static CV_PossibleValue_t joyaxis_cons_t[] = {{0, "None"},
 {1, "Left X"}, {2, "Left Y"}, {-1, "Left X-"}, {-2, "Left Y-"},
@@ -1493,7 +1495,8 @@ void G_BuildTiccmd(ticcmd_t *cmd, INT32 realtics, UINT8 ssplayer)
 	if ((cmd->forwardmove || cmd->sidemove || cmd->buttons)
 		&& displayplayers[0] != consoleplayer && ssplayer == 1)
 	{
-		G_ResetView(1, consoleplayer, false);
+		displayplayers[0] = consoleplayer;
+		G_FixCamera(1);
 		// i dont like this lmao
 		if (cv_director.value)
 			CV_SetValue(&cv_director, 0);
